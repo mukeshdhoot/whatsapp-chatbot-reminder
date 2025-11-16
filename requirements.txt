@@ -1,8 +1,5 @@
-flask
 gunicorn
+flask # or django/fastapi, etc.
+google-api-python-client
+oauth2client
 twilio
-gspread
-google-auth
-google-auth-oauthlib
-python-dateutil
-gspread-formatting
