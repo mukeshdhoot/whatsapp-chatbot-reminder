@@ -1,23 +1,25 @@
 import os
 import json
 import gspread
-from google.oauth2.service_account import Credentials # <--- Using modern library
+from google.oauth2.service_account import Credentials
+import base64 # Import base64 for decoding check
 
 # --- FINAL CLEAN AUTHENTICATION ---
 try:
     # Read individual key components from the environment variables.
     creds_info = {
         "type": "service_account",
-        "project_id": os.environ.get('PROJECT_ID'),
-        "private_key_id": os.environ.get('PRIVATE_KEY_ID'),
-        "client_email": os.environ.get('CLIENT_EMAIL'),
-        "client_id": os.environ.get('CLIENT_ID'),
+        "project_id": os.environ.get('PROJECT_ID').strip(), # .strip() added
+        "private_key_id": os.environ.get('PRIVATE_KEY_ID').strip(), # .strip() added
+        "client_email": os.environ.get('CLIENT_EMAIL').strip(), # .strip() added
+        "client_id": os.environ.get('CLIENT_ID').strip(), # .strip() added
         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
         "token_uri": "https://oauth2.googleapis.com/token",
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": os.environ.get('CLIENT_X509_CERT_URL'),
-        # CRITICAL LINE: Use the clean, separate RAW private key variable.
-        "private_key": os.environ.get('PRIVATE_KEY_RAW').replace('\\n', '\n'),
+        "client_x509_cert_url": os.environ.get('CLIENT_X509_CERT_URL').strip(), # .strip() added
+        
+        # CRITICAL FIX: The key must be stripped of whitespace.
+        "private_key": os.environ.get('PRIVATE_KEY_RAW').strip().replace('\\n', '\n'), # .strip() added
     }
 
     # Verify essential variables are present before proceeding
