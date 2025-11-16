@@ -1,36 +1,36 @@
 import os
 import json
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials # <--- NEW AUTH LIBRARY
+# from oauth2client.service_account import ServiceAccountCredentials # <--- DELETED
 
 # --- FINAL MODIFIED AUTHENTICATION FOR RENDER DEPLOYMENT ---
-# We read individual components from environment variables to bypass base64 corruption.
 try:
-    creds_info = {
-        "type": "service_account",
-        "project_id": os.environ.get('PROJECT_ID'),
-        "private_key_id": os.environ.get('PRIVATE_KEY_ID'),
-        "private_key": os.environ.get('PRIVATE_KEY_RAW').replace('\\n', '\n'),
-        "client_email": os.environ.get('CLIENT_EMAIL'),
-        "client_id": os.environ.get('CLIENT_ID'),
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": os.environ.get('CLIENT_X509_CERT_URL')
-    }
+    # 1. Retrieve the entire JSON content from the RENDER environment variable.
+    creds_json = os.environ.get('GOOGLE_CREDENTIALS')
 
-except AttributeError:
-    # This will catch if any environment variable is missing, providing a clearer error message.
-    raise EnvironmentError("One or more Google credentials environment variables are missing. Please check PROJECT_ID, PRIVATE_KEY_RAW, etc.")
+    if not creds_json:
+        raise EnvironmentError("GOOGLE_CREDENTIALS environment variable is not set. Cannot authenticate with Google Sheets.")
 
+    # 2. Load the credentials from the JSON string.
+    creds_info = json.loads(creds_json)
+    
+    # CRITICAL FIX: The older library (oauth2client) required complicated fixing. 
+    # The modern google-auth library handles the escaping automatically if the JSON is clean.
 
-# Use the loaded credentials to authorize the connection.
-s = [
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/drive'
-]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, s)
-client = gspread.authorize(creds)
+    # 3. Use the modern Google Auth Credentials.from_service_account_info method
+    s = [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive'
+    ]
+    creds = Credentials.from_service_account_info(creds_info, scopes=s)
+    client = gspread.authorize(creds)
+
+except Exception as e:
+    print(f"Authentication Failed: {e}")
+    # Raise a specific error to halt execution if auth fails
+    raise EnvironmentError(f"CRITICAL AUTHENTICATION FAILURE: Check GOOGLE_CREDENTIALS value. {e}")
+
 # --- END MODIFIED AUTHENTICATION ---
 
 # Retrieve the spreadsheet name
@@ -42,15 +42,12 @@ col_values=sheet.col_values(1)
 row_filled=len(col_values)
 col_filled=len(row_values)
 
-    
 def save_reminder_date(date):
-    # This part remains the same as your original logic
     sheet.update_cell(row_filled+1, 1, date)
     print("saved date!")
     return 0
     
 def save_reminder_body(msg):
-    # This part remains the same as your original logic
     sheet.update_cell(row_filled+1, 2, msg)
     print("saved reminder message!")
     return 0
