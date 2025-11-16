@@ -1,8 +1,8 @@
-Flask
+flask
 gunicorn
 twilio
 gspread
-oauth2client
 google-auth
 google-auth-oauthlib
 python-dateutil
+gspread-formatting
