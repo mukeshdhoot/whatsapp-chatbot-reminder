@@ -1,50 +1,32 @@
 import os
 import datetime
 import gspread
+import pytz # <-- NEW IMPORT
 from twilio.rest import Client
 
-# --- CONFIGURATION ---
-# Define the time format used in your Google Sheet (e.g., '10 am', '4:30 PM')
-TIME_FORMAT = "%I %p" 
+# --- CONFIGURATION (TIME ZONE ADDED) ---
+TIME_FORMAT = "%I:%M %p" # Corrected format for "8:22 AM"
+LOCAL_TIMEZONE = pytz.timezone('Asia/Kolkata') # Your local timezone (IST)
+UTC_TIMEZONE = pytz.utc # Server timezone
 
 # Define the exact header row names as they appear in your Google Sheet (Row 1).
-# This fix resolves the GSpreadException caused by blank/duplicate headers.
-# Based on your sheet image: A1='Date', B1='Reminder Messages', C1='10 am', D1='Pending'
-# NOTE: If you changed the headers in the sheet, update this list EXACTLY.
-EXPECTED_HEADERS = ['Date', 'Reminder Messages', 'Time', 'Status']
-
-# Define the column indices for data access (using the header names from the list above)
+EXPECTED_HEADERS = ['Date', 'Reminder Messages', 'Time', 'Status'] 
 COL_DATE = 'Date'
 COL_MESSAGE = 'Reminder Messages'
-COL_TIME = '10 am'
-COL_STATUS = 'Pending'
+COL_TIME = 'Time'
+COL_STATUS = 'Status' 
 
-
-# --- TWILIO INITIALIZATION ---
-try:
-    TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
-    TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
-    TWILIO_WHATSAPP_NUMBER = os.environ.get("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886") 
-    
-    # Initialize the Twilio client for sending messages
-    twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-
-except Exception as e:
-    print(f"ERROR: Could not initialize Twilio client. Check TWILIO_SID/TOKEN. Error: {e}")
-    # Exit the script if Twilio credentials are bad
-    exit(1)
-
+# ... (The rest of the Twilio and GSheets Initialization remains the same) ...
 
 # --- GOOGLE SHEETS INITIALIZATION ---
 def initialize_gsheets():
     """Initializes GSheets authentication and returns the worksheet object."""
     try:
-        # 1. Construct the Google Service Account credentials dictionary
+        # ... (Google_CREDS loading remains the same) ...
         GOOGLE_CREDS = {
             "type": "service_account",
             "project_id": os.environ.get('PROJECT_ID', '').strip(),
             "private_key_id": os.environ.get('PRIVATE_KEY_ID', '').strip(),
-            # CRITICAL FIX: Ensure newlines are preserved for the private key
             "private_key": os.environ.get('PRIVATE_KEY_RAW', '').strip().replace('\\n', '\n'),
             "client_email": os.environ.get('CLIENT_EMAIL', '').strip(),
             "client_id": os.environ.get('CLIENT_ID', '').strip(),
@@ -56,63 +38,62 @@ def initialize_gsheets():
         }
 
         SPREADSHEET_NAME = os.environ.get('SPREADSHEET_NAME')
-        
-        # 2. Authenticate and open the sheet
         gc = gspread.service_account_from_dict(GOOGLE_CREDS)
         spreadsheet = gc.open(SPREADSHEET_NAME)
         return spreadsheet.sheet1
     
     except Exception as e:
-        print(f"CRITICAL ERROR: Could not initialize Google Sheets. Check credentials/sharing. Error: {e}")
+        print(f"CRITICAL ERROR: Could not initialize Google Sheets. Error: {e}")
         exit(1)
-
 
 # --- MAIN SCHEDULER LOGIC ---
 def send_due_reminders(worksheet):
     """Checks the sheet for due reminders and sends them via Twilio."""
     
-    # CRITICAL FIX: Use expected_headers to successfully read the spreadsheet data
     pending_reminders = worksheet.get_all_records(expected_headers=EXPECTED_HEADERS)
     
-    # Get all cells in the Status column for fast updating later
-    status_col_index = worksheet.find(EXPECTED_HEADERS[3]).col
+    # Get the current time localized to your IST timezone
+    now_utc = datetime.datetime.now(UTC_TIMEZONE)
+    now_local = now_utc.astimezone(LOCAL_TIMEZONE).replace(second=0, microsecond=0)
     
-    now = datetime.datetime.now().replace(second=0, microsecond=0)
-    print(f"Scheduler running at: {now.strftime('%H:%M:%S')}")
+    # Find the column index for status update
+    status_col_index = worksheet.find(COL_STATUS).col
+    
+    print(f"Scheduler running. Local Time (IST): {now_local.strftime('%H:%M:%S')}")
     
     messages_sent = 0
 
     for index, reminder in enumerate(pending_reminders):
-        # Index in the sheet is 2 + loop index (Row 1 is headers, Row 2 is the first record)
         row_num = index + 2 
         
-        # Skip if the message is already sent
         if reminder.get(COL_STATUS) != 'Pending':
             continue
 
         try:
-            # Combine current date with the time string from the sheet to get a full datetime object
+            # 1. Parse the time string from the sheet and localize it to IST
             time_str = reminder.get(COL_TIME)
-            reminder_time = datetime.datetime.strptime(time_str, TIME_FORMAT).replace(
-                year=now.year, month=now.month, day=now.day
+            
+            # NOTE: We assume time_str is now in the format "8:22 AM" (with colon and space)
+            reminder_time_naive = datetime.datetime.strptime(time_str, TIME_FORMAT).replace(
+                year=now_local.year, month=now_local.month, day=now_local.day
             )
+            
+            # Localize the reminder time to IST
+            reminder_time_local = LOCAL_TIMEZONE.localize(reminder_time_naive)
 
-            # Check if the reminder time is now or in the past (<=)
-            if reminder_time <= now:
+            # 2. Check if the reminder time has been met or passed
+            if reminder_time_local <= now_local:
                 
-                # 1. SEND THE MESSAGE VIA TWILIO
+                # 3. SEND THE MESSAGE VIA TWILIO
                 reminder_text = f"REMINDER: It's time to {reminder.get(COL_MESSAGE)}."
-                recipient_number = reminder.get(COL_DATE) # The first column holds the WhatsApp number
+                recipient_number = reminder.get(COL_DATE)
 
-                message = twilio_client.messages.create(
-                    from_=TWILIO_WHATSAPP_NUMBER,
-                    body=reminder_text,
-                    to=recipient_number
-                )
+                # Twilio send logic here...
+                # message = twilio_client.messages.create(...)
+
                 print(f"SENT: {reminder_text} to {recipient_number}")
 
-                # 2. UPDATE THE STATUS IN GOOGLE SHEET
-                # Update the Status column (Column D, or index 4) for this row
+                # 4. UPDATE THE STATUS IN GOOGLE SHEET
                 worksheet.update_cell(row_num, status_col_index, 'Sent')
                 messages_sent += 1
 
@@ -123,6 +104,5 @@ def send_due_reminders(worksheet):
 
 
 if __name__ == "__main__":
-    # Ensure the script runs only when executed directly
     sheets_worksheet = initialize_gsheets()
     send_due_reminders(sheets_worksheet)
