@@ -86,7 +86,7 @@ def send_due_reminders(worksheet):
                 
                 # 3. SEND THE MESSAGE VIA TWILIO
                 reminder_text = f"REMINDER: It's time to {reminder.get(COL_MESSAGE)}."
-                recipient_number = reminder.get(COL_DATE)
+                recipient_number = reminder.get(COL_DATE).strip()
 
                 # Twilio send logic here...
                 # message = twilio_client.messages.create(...)
