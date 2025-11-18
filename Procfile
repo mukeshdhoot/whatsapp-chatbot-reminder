@@ -1,1 +1,1 @@
-web: gunicorn gsheet_func:application --bind 0.0.0.0:$PORT
+web: gunicorn gsheet_func:app --bind 0.0.0.0:$PORT
