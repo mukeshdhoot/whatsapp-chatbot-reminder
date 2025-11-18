@@ -11,7 +11,7 @@ TIME_FORMAT = "%I %p"
 # This fix resolves the GSpreadException caused by blank/duplicate headers.
 # Based on your sheet image: A1='Date', B1='Reminder Messages', C1='10 am', D1='Pending'
 # NOTE: If you changed the headers in the sheet, update this list EXACTLY.
-EXPECTED_HEADERS = ['Date', 'Reminder Messages', '10 am', 'Pending']
+EXPECTED_HEADERS = ['Date', 'Reminder Messages', 'Time', 'Status']
 
 # Define the column indices for data access (using the header names from the list above)
 COL_DATE = 'Date'
