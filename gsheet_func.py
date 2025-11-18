@@ -35,8 +35,8 @@ except Exception as e:
     raise EnvironmentError(f"CRITICAL AUTHENTICATION FAILURE: Check all 9 credentials, their spelling/case, and GSheet sharing. Error: {e}")
 
 # --- 2. APPLICATION INITIALIZATION ---
-# VITAL FIX: The name MUST be 'app' to match the Procfile command 'gsheet_func:app'.
-app = Flask(__name__) 
+# VITAL FIX: The name MUST be 'app' to match the Procfile.
+app = Flask(__name__)
 
 # --- 3. TWILIO WEBHOOK ROUTE AND LOGIC ---
 @app.route('/webhook', methods=['POST'])
